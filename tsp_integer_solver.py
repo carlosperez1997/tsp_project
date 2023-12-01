@@ -44,8 +44,7 @@ class TspSolution:
     cost: float
     lazy_constraints_added: List[dict]
     time_limit: float
-    exec_time: float
-    optimal: bool
+    model_metrics: Dict
 
 
 class TspIntegerBCSolver:
@@ -81,10 +80,10 @@ class TspIntegerBCSolver:
         self._instance = instance
         self._V = list(range(self._instance.n_vertices))
         self._A = list(self._instance.cost.keys())
-        self.time_limit = time_limit
+        self.model_metrics = {}
         self.lazy_constraints_added = []  # Initialize an empty list to store lazy constraints
         self.cardinality = cardinality  # Store the cardinality parameter
-        self.optimal = None
+        self.time_limit = time_limit
 
         # Build the optimization model
         self.__build_model()
@@ -226,15 +225,15 @@ class TspIntegerBCSolver:
         # We must set this parameter to use callbacks
         self._model.setParam(GRB.Param.LazyConstraints, 1)
 
-        # Gurobi always passes two parameters to the callback: `model` and `where`
-        self._model.optimize(lambda _, where: self.__separate(where))
-
         if self.time_limit is not None:
             self._model.setParam('TimeLimit', self.time_limit*60)
 
+        # Gurobi always passes two parameters to the callback: `model` and `where`
+        self._model.optimize(lambda _, where: self.__separate(where))
+
         if self._model.Status != GRB.OPTIMAL:
-            #raise RuntimeError(f"Could not find the optimal solution. Gurobi status = {self._model.Status}")
-            pass
+            raise RuntimeError(f"Could not find the optimal solution. Gurobi status = {self._model.Status}")
+            #pass
         
         #if self._model.Status in [GRB.INFEASIBLE, GRB.INF_OR_UNBD]:
         #    print(f"Warning: The model is infeasible or unbounded. Gurobi status = {self._model.Status}")
@@ -242,12 +241,16 @@ class TspIntegerBCSolver:
         if self._model.Status not in [GRB.OPTIMAL, GRB.SUBOPTIMAL]:
             raise RuntimeError(f"Could not find the optimal solution. Gurobi status = {self._model.Status}")
         
+        metrics = ["NumVars", "ObjVal", "ObjBound", "IterCount", "SolCount", "NodeCount", "Runtime"]
+        model_metrics = {}
+        for metric in metrics:
+            model_metrics[metric] = self._model.getAttr(metric)
+
         return TspSolution(
             instance=self._instance,
             tour=self.__tour_staring_at(0),
-            optimal=self._model.Status != GRB.OPTIMAL,
             cost=self._model.ObjVal,
             lazy_constraints_added=self.lazy_constraints_added,
             time_limit=self.time_limit*60 if self.time_limit is not None else None,
-            exec_time=self._model.Runtime
+            model_metrics=model_metrics
         )

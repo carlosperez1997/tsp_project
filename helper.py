@@ -76,6 +76,5 @@ def get_solution_info(solution):
             'tour': solution.tour,
             'lazy_constraints': solution.lazy_constraints_added,
             'lazy_constraints_count': lazy_constraints_size_count(solution.lazy_constraints_added),
-            'exec_time': solution.exec_time,
-            'time_limit': solution.time_limit
+            'metrics': solution.model_metrics
             }
